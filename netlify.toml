@@ -1,0 +1,16 @@
+# This is the main configuration file for your Netlify site.
+# It provides instructions for the build and deployment process.
+
+[build]
+  # This line tells Netlify where your serverless functions are located.
+  # Ensure this path matches your project's folder structure.
+  functions = "netlify/functions/"
+
+# This is the rewrite rule that solves the "404 Not Found" error.
+# It tells Netlify to take any request coming to "/api/..." and internally
+# forward it to the correct serverless function without changing the URL
+# in the browser.
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/:splat"
+  status = 200
