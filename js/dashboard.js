@@ -3,9 +3,12 @@
  * Handles Firebase authentication, data fetching, UI updates, and user interactions.
  * This version uses a secure Netlify proxy for all API calls and relies on a global
  * Firebase instance for database and authentication services.
- * @version 5.0.0
+ * @version 5.1.0
  */
-document.addEventListener('DOMContentLoaded', () => {
+
+// This is the correct pattern. All code is wrapped in the 'firebase-ready' event
+// listener to ensure Firebase is fully initialized before any of its services are used.
+document.addEventListener('firebase-ready', () => {
     'use strict';
 
     // --- MODULE SCOPE VARIABLES ---
@@ -276,9 +279,6 @@ document.addEventListener('DOMContentLoaded', () => {
             dom.logFoodBtn.textContent = 'Analyze & Log';
         }
     };
-
-    // --- All other functions from the original file are included below ---
-    // (The following is the rest of the original dashboard.js code, which remains functionally unchanged)
 
     // --- DAILY QUOTE LOGIC ---
     const quotes = [
