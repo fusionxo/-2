@@ -26,8 +26,10 @@ exports.handler = async function(event) {
             throw new Error('No API keys configured on the server for this function type.');
         }
 
-        // --- Construct the payload for the real Gemini API ---
-        const geminiApiUrl = "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro-vision:generateContent";
+        // --- MODEL SELECTION ---
+        // Using the specific Gemini 2.5 Flash preview model as requested.
+        const model = 'gemini-2.5-flash-preview-05-20';
+        const geminiApiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
         
         const requestBody = {
             contents: [{
@@ -51,6 +53,7 @@ exports.handler = async function(event) {
 
         for (const apiKey of keysForType) {
             try {
+                // Dynamically import node-fetch as this is an ES Module
                 const fetch = (await import('node-fetch')).default;
                 response = await fetch(`${geminiApiUrl}?key=${apiKey}`, {
                     method: 'POST',
@@ -66,7 +69,7 @@ exports.handler = async function(event) {
                         body: JSON.stringify(data)
                     };
                 }
-                // If the key is bad, it will throw an error or have a non-ok status,
+                // If the key is bad, it will have a non-ok status,
                 // and the loop will try the next key.
                 lastError = `API Error with status: ${response.status}`;
 
