@@ -27,8 +27,8 @@ exports.handler = async function(event) {
         }
 
         // --- MODEL SELECTION ---
-        // Using the specific Gemini 2.5 Flash preview model as requested.
-        const model = 'gemini-2.5-flash-preview-05-20';
+        // Using the specific Gemini 2.0 Flash model as requested.
+        const model = 'gemini-2.0-flash';
         const geminiApiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
         
         const requestBody = {
@@ -90,3 +90,4 @@ exports.handler = async function(event) {
         };
     }
 };
+
