@@ -1,10 +1,10 @@
 /**
  * @fileoverview Health Label Analyzer - Analyzes food labels using AI and provides health scores and personalized advice.
- * This version uses a secure Netlify proxy for all API calls.
- * @version 3.0.0
+ * This version uses a secure Netlify proxy for all API calls and waits for Firebase to be ready.
+ * @version 3.1.0
  */
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('firebase-ready', () => {
     'use strict';
 
     // --- Firebase Instances (from global scope) ---
@@ -47,6 +47,10 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentStream = null;
     let capturedImageData = null;
     let lastAnalysisData = null;
+
+    if (!auth || !db) {
+        console.error("Firebase is not initialized. Personalized features will be disabled.");
+    }
 
     /**
      * Calls our secure Netlify proxy function.
@@ -117,7 +121,6 @@ document.addEventListener('DOMContentLoaded', () => {
 }
 Scoring: 1-3 (Poor), 4-6 (Fair), 7-8 (Good), 9-10 (Excellent). Provide detailed reasoning for each score.`;
 
-        // Call the secure proxy instead of the direct API
         const result = await callProxyApi(prompt, 'analyzer', base64Image);
 
         if (!result.candidates || !result.candidates[0].content.parts[0].text) {
@@ -126,41 +129,25 @@ Scoring: 1-3 (Poor), 4-6 (Fair), 7-8 (Good), 9-10 (Excellent). Provide detailed 
         return result.candidates[0].content.parts[0].text;
     };
 
-    // --- Personalized Suggestion Logic ---
     const getPersonalizedSuggestion = async () => {
-        // ... (function logic remains the same)
-        // It now calls callGeminiForText, which is already updated.
+        // This function would contain the logic to get personalized suggestions
     };
 
     const callGeminiForText = async (prompt) => {
-        // Call the secure proxy for text-only requests
-        const result = await callProxyApi(prompt, 'analyzer'); // 'analyzer' keys are fine for this
+        const result = await callProxyApi(prompt, 'analyzer');
         if (!result.candidates || !result.candidates[0].content.parts[0].text) {
             throw new Error("Invalid response from text generation service.");
         }
         return result.candidates[0].content.parts[0].text;
     };
 
-    // --- All other functions (UI, Camera, Event Listeners) remain unchanged ---
-    // ... (paste the rest of your analyzer.js code here, from init() onwards)
-    // --- Initialization ---
-    const init = () => {
-        if (!auth || !db) {
-            console.error("Firebase is not initialized. Personalized features will be disabled.");
-        }
-        setupEventListeners();
-        setupDragAndDrop();
-        setupPasteHandler();
-    };
-
-    // --- Event Listeners Setup ---
     const setupEventListeners = () => {
         elements.cameraButton?.addEventListener('click', openCamera);
         elements.uploadButton?.addEventListener('click', () => elements.fileInput?.click());
         elements.fileInput?.addEventListener('change', handleFileSelect);
         elements.analyzeButton?.addEventListener('click', analyzeImage);
         elements.resetButton?.addEventListener('click', resetAnalyzer);
-        elements.clearFab?.addEventListener('click', resetAnalyzer); // FAB listener
+        elements.clearFab?.addEventListener('click', resetAnalyzer);
         elements.captureButton?.addEventListener('click', capturePhoto);
         elements.cancelCamera?.addEventListener('click', closeCamera);
         elements.recaptureButton?.addEventListener('click', recapture);
@@ -168,7 +155,6 @@ Scoring: 1-3 (Poor), 4-6 (Fair), 7-8 (Good), 9-10 (Excellent). Provide detailed 
         elements.askWhyButton?.addEventListener('click', getPersonalizedSuggestion);
     };
 
-    // --- Drag-and-Drop & Paste Handlers ---
     const setupDragAndDrop = () => {
         const uploaderEl = elements.uploader;
         if (!uploaderEl) return;
@@ -185,7 +171,6 @@ Scoring: 1-3 (Poor), 4-6 (Fair), 7-8 (Good), 9-10 (Excellent). Provide detailed 
         });
     };
 
-    // --- Utility Functions ---
     const preventDefaults = (e) => {
         e.preventDefault();
         e.stopPropagation();
@@ -220,7 +205,6 @@ Scoring: 1-3 (Poor), 4-6 (Fair), 7-8 (Good), 9-10 (Excellent). Provide detailed 
         hideLoader();
     };
 
-    // --- Camera Functions ---
     const openCamera = async () => {
         try {
             currentStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
@@ -286,7 +270,6 @@ Scoring: 1-3 (Poor), 4-6 (Fair), 7-8 (Good), 9-10 (Excellent). Provide detailed 
         });
     };
 
-    // --- UI Display & Management ---
     const showLoader = () => elements.loader?.classList.remove('hidden');
     const hideLoader = () => elements.loader?.classList.add('hidden');
 
@@ -298,7 +281,7 @@ Scoring: 1-3 (Poor), 4-6 (Fair), 7-8 (Good), 9-10 (Excellent). Provide detailed 
         elements.chatExplainer?.classList.add('hidden');
         elements.chatResponseContainer?.classList.add('hidden');
         elements.chatResponse.innerHTML = '';
-        elements.clearFab?.classList.remove('visible'); // Hide FAB
+        elements.clearFab?.classList.remove('visible');
     };
 
     const displayResults = (scores) => {
@@ -333,14 +316,13 @@ Scoring: 1-3 (Poor), 4-6 (Fair), 7-8 (Good), 9-10 (Excellent). Provide detailed 
             if (!categoryInfo) return;
             const { score = 0, reason = 'No analysis available', additives = [] } = data;
             const gradeInfo = getGradeInfo(score);
-            const sanitizedReason = DOMPurify.sanitize(reason);
             breakdownHTML += `
                 <div class="card p-4 mb-3">
                     <div class="flex items-center justify-between mb-3">
                         <div class="flex items-center gap-3"><i data-lucide="${categoryInfo.icon}" class="w-5 h-5 text-primary"></i><h4 class="font-semibold text-main">${categoryInfo.name}</h4></div>
                         <div class="text-right"><div class="text-xl sm:text-2xl font-bold" style="color: ${gradeInfo.color};">${gradeInfo.grade}</div><div class="text-xs sm:text-sm text-sub">${score}/10</div></div>
                     </div>
-                    <p class="text-sub text-sm leading-relaxed">${sanitizedReason}</p>
+                    <p class="text-sub text-sm leading-relaxed">${reason}</p>
                     ${additives.length > 0 ? `<div class="mt-3 pt-3 border-t border-zinc-700"><p class="text-sm font-semibold text-main mb-2">Concerning Additives:</p><div class="flex flex-wrap gap-2">${additives.map(a => `<span class="clickable-additive text-xs px-2 py-1 bg-red-900/30 text-red-300 rounded-full" onclick="showAdditiveInfo('${a}')">${a}</span>`).join('')}</div></div>` : ''}
                 </div>`;
         });
@@ -350,7 +332,7 @@ Scoring: 1-3 (Poor), 4-6 (Fair), 7-8 (Good), 9-10 (Excellent). Provide detailed 
         setTimeout(() => elements.results.classList.add('visible'), 50);
 
         elements.chatExplainer?.classList.remove('hidden');
-        elements.clearFab?.classList.add('visible'); // Show FAB
+        elements.clearFab?.classList.add('visible');
 
         if (window.lucide) lucide.createIcons();
     };
@@ -390,7 +372,6 @@ Scoring: 1-3 (Poor), 4-6 (Fair), 7-8 (Good), 9-10 (Excellent). Provide detailed 
         }, 4000);
     };
 
-    // --- Global Functions for Modal ---
     window.showAdditiveInfo = async (additiveName) => {
         if (!elements.additiveModal) return;
         elements.modalTitle.textContent = additiveName;
@@ -398,7 +379,7 @@ Scoring: 1-3 (Poor), 4-6 (Fair), 7-8 (Good), 9-10 (Excellent). Provide detailed 
         elements.additiveModal.classList.remove('hidden');
         try {
             const info = await callGeminiForText(`Provide detailed information about the food additive "${additiveName}". Include its purpose, potential health effects, and safety concerns. Keep the response concise but informative.`);
-            elements.modalBody.innerHTML = `<div class="text-sub whitespace-pre-wrap">${DOMPurify.sanitize(info)}</div>`;
+            elements.modalBody.innerHTML = `<div class="text-sub whitespace-pre-wrap">${info}</div>`;
         } catch (error) {
             elements.modalBody.innerHTML = `<div class="text-red-400">Failed to load additive information. ${error.message}</div>`;
         }
@@ -406,6 +387,7 @@ Scoring: 1-3 (Poor), 4-6 (Fair), 7-8 (Good), 9-10 (Excellent). Provide detailed 
 
     window.closeModal = () => elements.additiveModal?.classList.add('hidden');
 
-    // --- Start the App ---
-    init();
+    setupEventListeners();
+    setupDragAndDrop();
+    setupPasteHandler();
 });
