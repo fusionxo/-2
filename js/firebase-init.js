@@ -25,12 +25,10 @@ import {
 
 /**
  * Fetches the Firebase configuration from a secure serverless function.
- * This avoids exposing the configuration directly in the client-side code.
  * @returns {Promise<object|null>} The Firebase configuration object, or null on failure.
  */
 const getFirebaseConfig = async () => {
     try {
-        // This path corresponds to the Netlify function you have open.
         const response = await fetch('/.netlify/functions/get-firebase-config');
         if (!response.ok) {
             const errorData = await response.json();
@@ -39,23 +37,20 @@ const getFirebaseConfig = async () => {
         return await response.json();
     } catch (error) {
         console.error("Could not load Firebase configuration:", error);
-        // Optionally, display a user-facing error message on the page.
         return null;
     }
 };
 
 /**
- * Initializes Firebase after fetching the config and exports all necessary 
- * instances and functions to the global window object.
- * This function is self-invoking.
+ * Initializes Firebase after fetching the config and makes instances available.
  */
 const initializeFirebase = async () => {
     const firebaseConfig = await getFirebaseConfig();
 
-    // Stop initialization if the config couldn't be loaded.
     if (!firebaseConfig) {
         console.error("Firebase initialization failed because config is missing.");
-        // You might want to show an error message to the user here.
+        // Optionally show an error to the user on the page
+        document.body.innerHTML = '<div style="color: red; text-align: center; margin-top: 50px;">Error: Could not load app configuration. Please try again later.</div>';
         return;
     }
 
@@ -63,36 +58,16 @@ const initializeFirebase = async () => {
     const auth = getAuth(app);
     const db = getFirestore(app);
 
-    // Export ALL the functions and services your other scripts (login.js, register.js) will need.
+    // Make all necessary functions and services available on the window object.
     window.firebaseInstances = { 
-        // Core services
-        auth, 
-        db, 
-
-        // Auth functions
-        onAuthStateChanged, 
-        signOut, 
-        sendPasswordResetEmail,
-        createUserWithEmailAndPassword,
-        signInWithEmailAndPassword,
-        GoogleAuthProvider,
-        signInWithPopup,
-
-        // Firestore functions
-        doc, 
-        setDoc, 
-        onSnapshot, 
-        increment, 
-        arrayUnion, 
-        updateDoc, 
-        getDocs, 
-        collection, 
-        getDoc,
+        auth, db, onAuthStateChanged, signOut, sendPasswordResetEmail,
+        createUserWithEmailAndPassword, signInWithEmailAndPassword,
+        GoogleAuthProvider, signInWithPopup, doc, setDoc, onSnapshot,
+        increment, arrayUnion, updateDoc, getDocs, collection, getDoc,
         serverTimestamp
     };
 
-    // Dispatch a custom event to let other scripts know that Firebase is ready.
-    // This is a robust way to handle initialization timing.
+    // Dispatch a custom event to signal that Firebase is ready.
     document.dispatchEvent(new CustomEvent('firebase-ready'));
 };
 
