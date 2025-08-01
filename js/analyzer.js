@@ -1,7 +1,7 @@
 /**
  * @fileoverview Health Label Analyzer - Analyzes food labels using AI and provides health scores and personalized advice.
  * This version uses a secure Netlify proxy for all API calls and waits for Firebase to be ready.
- * @version 3.1.0
+ * @version 3.2.0
  */
 
 document.addEventListener('firebase-ready', () => {
@@ -129,8 +129,90 @@ Scoring: 1-3 (Poor), 4-6 (Fair), 7-8 (Good), 9-10 (Excellent). Provide detailed 
         return result.candidates[0].content.parts[0].text;
     };
 
+    /**
+     * Fetches personalized health advice based on the last analysis and user's profile.
+     */
     const getPersonalizedSuggestion = async () => {
-        // This function would contain the logic to get personalized suggestions
+        if (!auth?.currentUser) {
+            showNotification("You must be logged in for personalized advice.", true);
+            return;
+        }
+        if (!lastAnalysisData) {
+            showNotification("Please analyze a product first.", true);
+            return;
+        }
+
+        const button = elements.askWhyButton;
+        button.disabled = true;
+        button.innerHTML = `<div class="loader !w-5 !h-5 !border-2 !border-t-black mx-auto"></div>`;
+        elements.chatResponseContainer.classList.remove('hidden');
+        elements.chatResponse.innerHTML = `<div class="flex justify-center"><div class="loader"></div></div>`;
+
+        try {
+            const userDocRef = doc(db, 'users', auth.currentUser.uid);
+            const userDocSnap = await getDoc(userDocRef);
+            
+            if (!userDocSnap.exists()) {
+                throw new Error("Could not find your user profile.");
+            }
+            
+            const userData = userDocSnap.data();
+            
+            const firstName = (userData.name || 'there').split(' ')[0];
+            const userProfile = {
+                name: firstName,
+                age: userData.age || 'an adult',
+                gender: userData.gender || 'not specified',
+                activityLevel: userData.activityLevel || 'a general',
+                calorieGoal: userData.calorieGoal || 2000,
+            };
+
+            const prompt = `
+                Act as a friendly, caring, and professional health advisor. Your name is Dr. Calverse.
+                You are speaking to ${userProfile.name}, who is ${userProfile.age} years old with a ${userProfile.activityLevel} activity level. Their daily calorie goal is ~${userProfile.calorieGoal} kcal.
+                
+                Here is the health analysis of a food product they scanned: ${JSON.stringify(lastAnalysisData)}.
+
+                Provide a personalized response. Structure your response with the following markdown headings. Use a warm, encouraging, and non-judgmental tone. Do not mention that you are a language model. Only use the user's first name once in the opening sentence.
+
+                **Okay ${userProfile.name}, let's take a look at this! Here's a quick breakdown:**
+
+                **The Good Stuff:**
+                (A short, positive point about its benefits. Connect it to the user if possible.)
+
+                **A Little Caution:**
+                (A gentle, supportive explanation of the drawbacks, relating it to the user's profile.)
+
+                **Healthier Swaps:**
+                (Suggest three simple, varied, and practical Indian alternatives.)
+
+                **My Friendly Advice:**
+                (A warm, personalized tip from Dr. Calverse that is encouraging. Address the user directly without using their name again.)
+
+                **The Bottom Line:**
+                (A one-line summary verdict for this specific user.)
+            `;
+
+            const responseText = await callGeminiForText(prompt);
+            
+            const formattedHtml = responseText
+                .replace(/\*\*(.*?):\*\*/g, '<strong>$1</strong>')
+                .split('\n')
+                .map(line => line.trim())
+                .filter(line => line)
+                .map(line => `<p>${line}</p>`)
+                .join('');
+
+            elements.chatResponse.innerHTML = formattedHtml;
+
+        } catch (error) {
+            console.error("Personalized suggestion error:", error);
+            elements.chatResponse.innerHTML = `<p class="text-red-400">Sorry, I couldn't generate a personalized explanation right now. Please ensure your profile is up to date in the calculator section.</p>`;
+        } finally {
+            button.disabled = false;
+            button.innerHTML = `<i data-lucide="refresh-cw" class="mr-2"></i><span>Regenerate Advice</span>`;
+            if (window.lucide) window.lucide.createIcons();
+        }
     };
 
     const callGeminiForText = async (prompt) => {
@@ -334,7 +416,7 @@ Scoring: 1-3 (Poor), 4-6 (Fair), 7-8 (Good), 9-10 (Excellent). Provide detailed 
         elements.chatExplainer?.classList.remove('hidden');
         elements.clearFab?.classList.add('visible');
 
-        if (window.lucide) lucide.createIcons();
+        if (window.lucide) window.lucide.createIcons();
     };
 
     const getGradeInfo = (score) => {
