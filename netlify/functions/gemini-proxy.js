@@ -1,18 +1,15 @@
-// This is your new, secure serverless function.
-// It runs on Netlify's servers, not in the browser.
+// /netlify/functions/gemini-proxy.js
 
 exports.handler = async function(event) {
-    // Only allow POST requests
     if (event.httpMethod !== 'POST') {
         return { statusCode: 405, body: 'Method Not Allowed' };
     }
 
     try {
-        // Get the prompt and image data from the frontend request
         const { prompt, base64Image, type } = JSON.parse(event.body);
 
-        // --- Key Rotation & Failover Logic ---
-        // Get your API keys securely from Netlify Environment Variables
+        // --- Key Organization & Selection ---
+        // Your existing logic for organizing keys by type is excellent.
         const apiKeys = {
             analyzer: [process.env.ANALYZER_GEM_1, process.env.ANALYZER_GEM_2, process.env.ANALYZER_GEM_3],
             dashboard: [process.env.DASHBOARD_GEM_1, process.env.DASHBOARD_GEM_2, process.env.DASHBOARD_GEM_3],
@@ -20,42 +17,36 @@ exports.handler = async function(event) {
             tools: [process.env.TOOLS_GEM_1, process.env.TOOLS_GEM_2, process.env.TOOLS_GEM_3],
         };
 
-        const keysForType = (apiKeys[type] || apiKeys.dashboard).filter(Boolean); // Default to dashboard keys
+        const keysForType = (apiKeys[type] || apiKeys.dashboard).filter(Boolean);
 
         if (keysForType.length === 0) {
-            throw new Error('No API keys configured on the server for this function type.');
+            throw new Error(`No API keys configured on the server for function type: ${type}`);
         }
 
-        // --- MODEL SELECTION ---
-        // Using the specific Gemini 2.0 Flash model as requested.
-        const model = 'gemini-2.0-flash';
+        // --- Dynamic Model Selection ---
+        // Use the vision model if an image is included, otherwise use the standard model.
+        const model = base64Image ? 'gemini-pro-vision' : 'gemini-1.5-flash-latest';
         const geminiApiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
-        
+
         const requestBody = {
-            contents: [{
-                parts: [{ text: prompt }]
-            }],
+            contents: [{ parts: [{ text: prompt }] }],
         };
 
-        // If an image is sent from the frontend, add it to the payload
         if (base64Image) {
             requestBody.contents[0].parts.push({
-                inline_data: {
-                    mime_type: "image/jpeg",
-                    data: base64Image
-                }
+                inline_data: { mime_type: "image/jpeg", data: base64Image }
             });
         }
-        
-        // --- Try keys until one succeeds ---
-        let response;
-        let lastError;
 
+        // --- Key Failover Logic ---
+        // Your loop to try each key until one succeeds is a great approach.
+        let lastError;
         for (const apiKey of keysForType) {
             try {
-                // Dynamically import node-fetch as this is an ES Module
+                // Dynamically import node-fetch as it's an external dependency
                 const fetch = (await import('node-fetch')).default;
-                response = await fetch(`${geminiApiUrl}?key=${apiKey}`, {
+                
+                const response = await fetch(`${geminiApiUrl}?key=${apiKey}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(requestBody)
@@ -63,24 +54,21 @@ exports.handler = async function(event) {
 
                 if (response.ok) {
                     const data = await response.json();
-                    // Success! Return the data to the frontend.
-                    return {
-                        statusCode: 200,
-                        body: JSON.stringify(data)
-                    };
+                    return { statusCode: 200, body: JSON.stringify(data) };
                 }
-                // If the key is bad, it will have a non-ok status,
-                // and the loop will try the next key.
-                lastError = `API Error with status: ${response.status}`;
+                
+                // If we get here, the response was not ok (e.g., 4xx or 5xx error from Google)
+                lastError = `API Error with status: ${response.status} using key ending in ...${apiKey.slice(-4)}`;
 
             } catch (error) {
-                lastError = error.message;
-                continue; // Try the next key
+                // This catches network errors or other issues with the fetch call itself.
+                lastError = `Network or fetch error: ${error.message}`;
+                continue; // Move to the next key
             }
         }
 
-        // If all keys failed
-        throw new Error(`All API attempts failed. Last error: ${lastError}`);
+        // If the loop finishes without a successful response
+        throw new Error(`All API key attempts failed. Last error: ${lastError}`);
 
     } catch (error) {
         console.error('Proxy Error:', error);
@@ -90,4 +78,3 @@ exports.handler = async function(event) {
         };
     }
 };
-
